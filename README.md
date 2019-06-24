@@ -17,13 +17,13 @@ What's left is the whole USB MIDI/HID keyboard stuff...
 
 The trick is to split the problem up into two parts: a *PS/2 part* (talking to the Prodikeys) and an *USB part* (talking to the computer). This can both be done on one regular **Arduino UNO R3**.
 
-## How to
+## How to use
 * Get an **Arduino UNO R3** which has an **ATMEGA32u2** USB controller. Others using a FTDI or CH340 do **not** work.
-* Upload the Arduino sketch [*ProdikeysDM*](https://github.com/hotkeymuc/ProdikeysDM_Adaptor/tree/master/PS2-Part__Arduino_Sketch_for_ATMEGA328P/ProdikeysDM) onto it
-* Connect an ISP programmer to the **secondary** ISP port (near the USB jack) and flash the [*KeyboardMIDI* firmware](https://github.com/hotkeymuc/ProdikeysDM_Adaptor/tree/master/USB-Part__Firmware_for_ATMEGA32U2/KeyboardMIDI) onto it. After it has been flashed, you will not be able to upload a sketch via USB any more (unless you flash the original firmware back)
-* Connect the ProdikeysDM keyboard to the Arduino: CLK to PIN3, DATA to PIN4
-* Plug the Arduino into a computer and it should show up as a "Prodikeys DM multifunction keyboard"
-* Have fun and jam along
+* Upload the Arduino sketch [*ProdikeysDM*](https://github.com/hotkeymuc/ProdikeysDM_Adaptor/tree/master/PS2-Part__Arduino_Sketch_for_ATMEGA328P/ProdikeysDM) onto the Arduino (using the Arduino IDE or an ISP programmer)
+* Now update the USB firmware on the secondary processor: Unplug the USB cable from your Arduino and connect an ISP programmer to the **secondary** ISP port near the USB jack. (You can use the "Arduino ISP" example to turn an Arduino into an ISP programmer if you don't already own such a device). Flash the .hex file from [*KeyboardMIDI* firmware](https://github.com/hotkeymuc/ProdikeysDM_Adaptor/tree/master/USB-Part__Firmware_for_ATMEGA32U2/KeyboardMIDI) onto it. I have included a "flash_write.sh" script for that. After the USB processor has been flashed, you will not be able to upload sketches via USB any more unless you flash the original firmware back to the USB controller. You can always do so using an ISP programmer and the Arduino IDE.
+* Now physically connect the ProdikeysDM keyboard to the Arduino: PS2-VCC to +5V, PS2-GND to GND, PS2-CLK to D3, PS2-DATA to D4. (Refer to "PS2Keyboard" examples on the web)
+* You are now ready to plug the Arduino into a computer and it should show up as "Prodikeys DM multifunction keyboard", having a HID-Keyboard, and a MIDI-capable audio device.
+* Have fun jamming along!
 
 ## Known issues
 * Some notes on the MIDI keyboard do not produce any MIDI data. This seems to be a well-known issue with these keyboards. It may be due to missing configuration data that needs to be sent to the keyboard on power up.

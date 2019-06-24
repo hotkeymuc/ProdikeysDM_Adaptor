@@ -26,5 +26,6 @@ The trick is to split the problem up into two parts: a *PS/2 part* (talking to t
 * Have fun and jam along
 
 ## Known issues
-* As of know (2019-06-23) the keyboard mapping is wrong! Pressing any of the "regular" keys will produce random key strokes. But, hey!, there are keystrokes!
-* Some notes on the MIDI keyboard seem to be dead. This seems to be a well-known issue with these keyboards. More investigation needs to be done here.
+* Some notes on the MIDI keyboard do not produce any MIDI data. This seems to be a well-known issue with these keyboards. It may be due to missing configuration data that needs to be sent to the keyboard on power up.
+* Not all keys on the typing keyboard have been implemented. Currently only alpha numericals work.
+* Status LEDs are currently wrong and can't be toggled

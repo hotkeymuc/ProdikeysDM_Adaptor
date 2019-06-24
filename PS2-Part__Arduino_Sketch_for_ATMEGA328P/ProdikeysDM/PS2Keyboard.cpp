@@ -400,14 +400,14 @@ void ps2interrupt (void) {
           
           //Serial.print("Key: RELEASE "); Serial.println(ps2Keyboard_CurrentBuffer);
           if (ps2Keyboard_onKeyRelease != NULL)
-            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer);
+            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend);
           
           ps2Keyboard_release = false;
         }
         else { // real keys go into CharBuffer
           //Serial.print("Key: PRESS "); Serial.println(ps2Keyboard_CurrentBuffer);
           if (ps2Keyboard_onKeyPress != NULL)
-            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, kbd_read_extra());
+            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend, kbd_read_extra());
           
           ps2Keyboard_CharBuffer = ps2Keyboard_CurrentBuffer;
         }

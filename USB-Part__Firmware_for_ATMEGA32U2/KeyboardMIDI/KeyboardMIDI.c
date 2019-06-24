@@ -669,6 +669,7 @@ void EVENT_USB_Device_StartOfFrame(void) {
  */
 bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDInterfaceInfo, uint8_t* const ReportID, const uint8_t ReportType, void* ReportData, uint16_t* const ReportSize) {
 	
+	// Structure is: [mod] [0] [k0][k1][k2][k3][k4][k5]
 	USB_KeyboardReport_Data_t* KeyboardReport = (USB_KeyboardReport_Data_t*)ReportData;
 	
 	//TODO: Have fun here!

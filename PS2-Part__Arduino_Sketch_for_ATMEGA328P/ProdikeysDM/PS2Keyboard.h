@@ -60,8 +60,8 @@ typedef uint8_t byte;
 
 typedef void (*onData_t)(byte b);
 typedef void (*onError_t)(byte e);
-typedef void (*onKeyPress_t)(byte c, byte m);
-typedef void (*onKeyRelease_t)(byte c);
+typedef void (*onKeyPress_t)(byte c, bool e, byte m);
+typedef void (*onKeyRelease_t)(byte c, bool e);
 typedef void (*onProdikeysKeyPress_t)(byte k, byte m);
 typedef void (*onProdikeysKeyRelease_t)(byte k);
 typedef void (*onProdikeysMidiPress_t)(byte n, byte velocity);

@@ -95,11 +95,11 @@ void lufa_send_pong(uint8_t data1, uint8_t data2) {
   lufa_send(LUFA_INTF_INTERNAL, LUFA_COMMAND_PONG, data1, data2);
 }
 
-void lufa_send_keyboard_press(uint8_t c, uint8_t m) {
-  lufa_send(LUFA_INTF_KEYBOARD, LUFA_COMMAND_KEYBOARD_PRESS, c, m);
+void lufa_send_keyboard_press(uint8_t usbScanCode, uint8_t usbMod) {
+  lufa_send(LUFA_INTF_KEYBOARD, LUFA_COMMAND_KEYBOARD_PRESS, usbScanCode, usbMod);
 }
-void lufa_send_keyboard_release(uint8_t c, uint8_t m) {
-  lufa_send(LUFA_INTF_KEYBOARD, LUFA_COMMAND_KEYBOARD_RELEASE, c, m);
+void lufa_send_keyboard_release(uint8_t usbScanCode, uint8_t usbMod) {
+  lufa_send(LUFA_INTF_KEYBOARD, LUFA_COMMAND_KEYBOARD_RELEASE, usbScanCode, usbMod);
 }
 void lufa_send_keyboard_leds(uint8_t m) {
   lufa_send(LUFA_INTF_KEYBOARD, LUFA_COMMAND_KEYBOARD_LEDS, m, 0);
@@ -189,11 +189,12 @@ void lufa_parse() {
       break;
       
     case LUFA_INTF_KEYBOARD:
+      
       // Handle keyboard commands (e.g. LED on/off) coming IN from the USB cpu/host
       switch(lufa_command) {
         case LUFA_COMMAND_KEYBOARD_LEDS:
           Serial.print("App got LEDs:"); Serial.println(lufa_data1, HEX);
-          keyboard.setLEDs(lufa_data1);
+          keyboard.setLEDs(usbLedsToPs2(lufa_data1));
           break;
       }
       break;
@@ -205,7 +206,121 @@ void lufa_parse() {
 }
 
 
+// USB Scan Codes: http://www.fourwalledcubicle.com/files/LUFA/Doc/140928/html/_h_i_d_class_common_8h.html
+#define USB_ALPHA_OFS (0x04 - 'a')
 
+uint8_t ps2ScanCodeToUsb(uint8_t ps2ScanCode, bool ps2Ext) {
+  uint8_t result = 0;
+  
+  switch(ps2ScanCode) {
+    case 0x1C: result = 'a' + USB_ALPHA_OFS; break;
+    case 0x32: result = 'b' + USB_ALPHA_OFS; break;
+    case 0x21: result = 'c' + USB_ALPHA_OFS; break;
+    case 0x23: result = 'd' + USB_ALPHA_OFS; break;
+    case 0x24: result = 'e' + USB_ALPHA_OFS; break;
+    case 0x2B: result = 'f' + USB_ALPHA_OFS; break;
+    case 0x34: result = 'g' + USB_ALPHA_OFS; break;
+    case 0x33: result = 'h' + USB_ALPHA_OFS; break;
+    case 0x43: result = 'i' + USB_ALPHA_OFS; break;
+    case 0x3B: result = 'j' + USB_ALPHA_OFS; break;
+    case 0x42: result = 'k' + USB_ALPHA_OFS; break;
+    case 0x4B: result = 'l' + USB_ALPHA_OFS; break;
+    case 0x3A: result = 'm' + USB_ALPHA_OFS; break;
+    case 0x31: result = 'n' + USB_ALPHA_OFS; break;
+    case 0x44: result = 'o' + USB_ALPHA_OFS; break;
+    case 0x4D: result = 'p' + USB_ALPHA_OFS; break;
+    case 0x15: result = 'q' + USB_ALPHA_OFS; break;
+    case 0x2D: result = 'r' + USB_ALPHA_OFS; break;
+    case 0x1B: result = 's' + USB_ALPHA_OFS; break;
+    case 0x2C: result = 't' + USB_ALPHA_OFS; break;
+    case 0x3C: result = 'u' + USB_ALPHA_OFS; break;
+    case 0x2A: result = 'v' + USB_ALPHA_OFS; break;
+    case 0x1D: result = 'w' + USB_ALPHA_OFS; break;
+    case 0x22: result = 'x' + USB_ALPHA_OFS; break;
+    case 0x35: result = 'y' + USB_ALPHA_OFS; break;
+    case 0x1A: result = 'z' + USB_ALPHA_OFS; break;
+
+    case 0x41: result = 0x36; break;  // , <
+    case 0x49: result = 0x37; break;  // . >
+    case 0x4A: result = 0x38; break;  // / ?
+    case 0x54: result = 0x2f; break;  // { [
+    case 0x5B: result = 0x30; break;  // } ]
+    case 0x4E: result = 0x2d; break;  // - _
+    case 0x55: result = 0x2e; break;  // = +
+    case 0x29: result = 0x2c; break;  // SPACE
+  
+    case 0x45: result = 0x27; break;  // 0
+    case 0x16: result = 0x1e; break;  // 1
+    case 0x1E: result = 0x1F; break;  // 2
+    case 0x26: result = 0x20; break;  // 3
+    case 0x25: result = 0x21; break;  // 4
+    case 0x2E: result = 0x22; break;  // 5
+    case 0x36: result = 0x23; break;  // 6
+    case 0x3D: result = 0x24; break;  // 7
+    case 0x3E: result = 0x25; break;  // 8
+    case 0x46: result = 0x26; break;  // 9
+  
+    case 0x0D: result = 0x2b; break;  // TAB
+    case 0x5A: result = 0x28; break;  // ENTER \n
+    case 0x66: result = 0x2A; break;  // Backspace
+    
+    
+    // Num Pad
+    case 0x69: result = 0x59; break;  //ps2Ext ? PS2_KC_END   : '1';
+    case 0x6B: result = 0x5c; break;  //ps2Ext ? PS2_KC_LEFT  : '4';
+    case 0x6C: result = 0x5f; break;  //ps2Ext ? PS2_KC_HOME  : '7';
+    case 0x70: result = 0x62; break;  //ps2Ext ? PS2_KC_INS   : '0';
+    case 0x71: result = 0x63; break;  //ps2Ext ? PS2_KC_DEL   : '.';
+    case 0x72: result = 0x5a; break;  //ps2Ext ? PS2_KC_DOWN  : '2';
+    case 0x73: result = 0x5d; break;  //'5'; break;
+    case 0x74: result = 0x5e; break;  //ps2Ext ? PS2_KC_RIGHT : '6';
+    case 0x75: result = 0x60; break;  //ps2Ext ? PS2_KC_UP    : '8';
+    case 0x76: result = 0x29; break;  //ESC
+    case 0x79: result = 0x57; break;  //'+'; break;
+    case 0x7A: result = 0x5b; break;  //ps2Ext ? PS2_KC_PGDN  : '3';
+    case 0x7B: result = 0x56; break;  //'-'; break;
+    case 0x7C: result = 0x55; break;  //'*'; break;
+    case 0x7D: result = 0x61; break;  //ps2Ext ? PS2_KC_PGUP  : '9';
+    
+    /*
+    case 0x58:
+      // setting the keyboard lights is done here.
+      result = ps2Keyboard_caps_lock? PS2_KC_CLON : PS2_KC_CLOFF;
+      if (ps2Keyboard_caps_lock) kbd_set_lights(4);
+      else                       kbd_set_lights(0);
+    break;
+    */
+
+  }
+
+  // shift a-z chars here (less code than in the switch statement)
+  //if (((result>='a') && (result<='z')) && (ps2Keyboard_shift)) result = result + ('A'-'a');
+
+  return result;
+}
+
+uint8_t ps2ModToUsb(uint8_t ps2Mod) {
+  uint8_t usbMod = 0;
+  
+  if (ps2Mod & 1) usbMod |= 1;  // LeftCtrl
+  if (ps2Mod & 2) usbMod |= 4;  // LeftAlt
+  if (ps2Mod & 4) usbMod |= 2;  // LeftShift
+  
+  return usbMod;
+}
+
+uint8_t usbLedsToPs2(uint8_t usbLeds) {
+  uint8_t ps2Leds = 0;
+
+  //if (usbLeds & 1) ps2Leds |= ???;  // Num
+  if (usbLeds & 2) ps2Leds |= 4;  // Caps
+  //if (usbLeds & 4) ps2Leds |= ???;  // Scroll
+  
+  //if (usbLeds & 8) ps2Leds |= ???;  // Compose
+  //if (usbLeds & 16) ps2Leds |= ???;  // Kana
+  
+  return ps2Leds;
+}
 
 // Callbacks of PS2Keyboard
 void keyboard_onData(uint8_t b) {
@@ -220,15 +335,20 @@ void keyboard_onError(uint8_t e) {
   Serial.println((char)e);
 }
 
-void keyboard_onKeyPress(uint8_t c, uint8_t m) {
+void keyboard_onKeyPress(uint8_t ps2ScanCode, bool ps2Ext, uint8_t ps2Mod) {
   // Keyboard key press
   //Serial.print("KeyPress"); Serial.println(c, HEX);
-  lufa_send_keyboard_press(c, m);
+  uint8_t usbScanCode = ps2ScanCodeToUsb(ps2ScanCode, ps2Ext);
+  uint8_t usbMod = ps2ModToUsb(ps2Mod);
+  lufa_send_keyboard_press(usbScanCode, usbMod);
 }
-void keyboard_onKeyRelease(uint8_t c) {
+void keyboard_onKeyRelease(uint8_t ps2ScanCode, bool ps2Ext) {
   // Keyboard key release
   //Serial.print("KeyRelease"); Serial.println(c, HEX);
-  lufa_send_keyboard_release(c, keyboard.read_extra());
+  
+  uint8_t usbScanCode = ps2ScanCodeToUsb(ps2ScanCode, ps2Ext);
+  uint8_t usbMod = ps2ModToUsb(keyboard.read_extra());
+  lufa_send_keyboard_release(usbScanCode, usbMod);
 }
 void keyboard_onProdikeysKeyPress(uint8_t k, uint8_t m) {
   // Prodikeys special key press
@@ -245,12 +365,12 @@ void keyboard_onProdikeysKeyPress(uint8_t k, uint8_t m) {
       break;
   }
   
-  //lufa_send_keyboard_press(c, m);
+  //lufa_send_keyboard_press(usbScanCode, usbMod);
 }
 void keyboard_onProdikeysKeyRelease(uint8_t k) {
   // Prodikeys special key release
   Serial.print("FuncRelease"); Serial.println(k, HEX);
-  //lufa_send_keyboard_release(c, keyboard.read_extra());
+  //lufa_send_keyboard_release(usbScanCode, usbMod);
 }
 void keyboard_onProdikeysMidiPress(uint8_t n, uint8_t velocity) {
   // Prodikeys MIDI note press

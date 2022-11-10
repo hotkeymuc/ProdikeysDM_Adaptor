@@ -1,0 +1,226 @@
+2019-06-15
+CREATIVE Prodikeys dm (PS/2 only)
+
+* Forum Info: https://www.linuxmusicians.com/viewtopic.php?t=15947
+
+----------------------------------------
+
+TODO:
+	* Find a microcontroller which can take 5V PS/2 and act as USB HID Keyboard + USB MIDI
+		+ USB-capable Arduino (Leonardo, any ATMEGA32U4)
+			+ http://www.arduino.cc/en/Reference/MIDIUSB
+		* Turn UNOs USB into USB-MIDI (requires "good" UNOs with a second 32u8 chip for USB)
+			-> HIDuino project
+				https://github.com/ddiakopoulos/hiduino
+				https://www.instructables.com/id/Turn-your-Arduino-Uno-into-an-USB-HID-Mididevice/
+		* V-USB on barebone hardware
+			-> https://www.instructables.com/id/USB-MIDI-Controller/
+		* Digispark / Digispark Pro: https://digistump.com/board/index.php?topic=1060.0
+			-> https://github.com/digistump/DigistumpArduino/tree/master/digistump-avr/libraries
+		* Microduino (ATMEGA32U4): https://microduinoinc.com/microduino-series-modules/
+		+ LightBlue Bean?
+
+----------------------------------------
+
+History:
+2019-06-15
+* Trying to see if the "MIDI data" is sent without some initial magic Host-to-Keyboard communication:
+	* I have connected an oscilloscope to the PS/2 data line
+		-> The "magic" MIDI buttons do not transmit any data (only the media keys/volume knob does)
+		!! I need to connect it to a WinXP machine and sniff the traffic!
+
+* Accessing raw data:
+	* Via /dev/input on native PS/2 port:
+			sudo cat /dev/input/by-path/platform-i8042-serio-0-event-kbd
+			-> Nothing. The "special" MIDI keys do not produce any data
+				-> !!! I later found out that NO DATA WHATSOEVER is sent through the PS/2 line on those special keys
+			-> The MIDI functions have to be activated in some way (or it is sent through the unused lines? I doubt it...)
+	
+	* Check out /sys/bus/serio/devices
+		https://unix.stackexchange.com/questions/495444/trouble-getting-a-ps-2-keyboard-to-work-under-linux-mint#
+		
+		-> If connected via USB this directory is EMPTY
+		!! If connected via mainboard PS/2, there is a serio0!
+		
+		* Enable raw PS/2 port access with serio_raw. Do
+				sudo echo -n "serio_raw" > /sys/bus/serio/devices/serio0/drvctl
+				...and you should get a /dev/psaux device (watch dmesg, also for errors).
+				-> :-( "Permission denied", even with "sudo" :-(
+				
+			* Try sudo hexdump -C /dev/psaux
+				...and see if you get something when you use the barcode reader (keep in mind it buffers lines, or modify command for single bytes per line).
+		
+
+2019-06-16
+* Built an Arduino PS/2 sniffer and found the "magic" data:
+	
+	* ProdLoad QUICK init:
+		18:58:37.864 -> x 	E8	0	Host: 0xE8
+		18:58:37.864 -> OK	23	1	Kbd: 0x23
+
+		18:58:37.897 -> x 	E8	0	Host: 0xE8
+		18:58:37.897 -> OK	23	1	Kbd: 0x23
+
+		18:58:37.963 -> x 	E4	0	Host: MAGIC 0xE4
+		18:58:37.963 -> x 	FA	1	Kbd: ack
+		18:58:37.963 -> OK	15	0	Host: FUNCTION 0x15 (=quick start MIDI)
+		18:58:37.963 -> x 	FA	1	Kbd: ack
+	
+	* ProdLoad full initialization traffic (bi-directional)
+		16:48:40.976 -> x 	E4	0	Host: CT MAGIC 0xE4!
+		16:48:40.976 -> x 	FA	1	Kbd: OK
+		16:48:40.976 -> OK	70	0	Host: CT FUNCTION 0x70 (Init?)
+		16:48:40.976 -> x 	FA	1	Kbd: OK
+		
+		16:48:40.976 -> OK	EA	1	Host: CT MAGIC 0xEA!
+		16:48:40.976 -> x 	35	1
+		16:48:40.976 -> x 	42	1
+		16:48:41.009 -> x 	33	1
+		16:48:41.009 -> OK	3D	1
+		16:48:41.009 -> x 	35	1
+		16:48:41.042 -> OK	7F	1
+		16:48:41.042 -> x 	35	1
+		16:48:41.042 -> x 	05	1
+		
+		16:48:41.042 -> OK	E9	0	Host: CT MAGIC 0xE9!
+		16:48:41.042 -> x 	FA	1	Kbd: OK
+		
+		16:48:41.042 -> OK	E9	0	Host: CT MAGIC 0xE9!
+		16:48:41.042 -> x 	FA	1	Kbd: OK
+		
+		16:48:41.042 -> x 	E4	0	Host: CT MAGIC 0xE4!
+		16:48:41.042 -> x 	FA	1	Kbd: OK
+		16:48:41.042 -> x 	5C	0	Host: CT FUNCTION 0x5C (mapping?)
+		16:48:41.042 -> x 	FD	0
+		16:48:41.075 -> x 	A6	0
+		16:48:41.075 -> OK	7F	1
+		16:48:41.075 -> OK	8F	0
+		16:48:41.075 -> x 	7F	1
+		16:48:41.075 -> x 	A6	0
+		16:48:41.075 -> OK	7F	1
+		16:48:41.075 -> OK	AD	0
+		16:48:41.075 -> x 	7F	0
+		16:48:41.075 -> x 	A6	0
+		16:48:41.075 -> x 	7F	0
+		16:48:41.075 -> OK	A1	0
+		16:48:41.075 -> x 	7F	0
+		16:48:41.075 -> x 	A6	0
+		16:48:41.075 -> x 	7F	0
+		16:48:41.075 -> OK	AD	0
+		16:48:41.075 -> x 	FF	1
+		
+		16:48:41.969 -> OK	EC	1	Host: CT MAGIC 0xEC!
+		16:48:41.969 -> x 	33	1
+		16:48:41.969 -> OK	46	1
+		16:48:41.969 -> x 	33	1
+		16:48:41.969 -> OK	1F	1
+		16:48:42.002 -> x 	35	1
+		16:48:42.002 -> x 	50	1
+		16:48:42.002 -> x 	35	1
+		16:48:42.002 -> OK	16	1
+		
+		16:48:42.002 -> OK	E9	0	Host: CT MAGIC 0xE9!
+		16:48:42.002 -> x 	FA	1	Kbd: OK
+	
+	idle
+	16:48:43.326 -> OK	F1	0
+	16:48:43.326 -> OK	FE	1
+
+		16:48:44.054 -> x 	E8	0	Host: CT MAGIC 0xE8!
+		16:48:44.054 -> OK	23	1
+		16:48:44.088 -> x 	E4	0	Host: CT MAGIC 0xE4!
+		16:48:44.088 -> x 	FA	1	Kbd: OK
+		16:48:44.088 -> OK	04	0	Host: CT FUNCTION 0x04 (Start?)
+		16:48:44.088 -> x 	FA	1	Kbd: OK
+		
+		16:48:44.088 -> OK	E0	1	EXT
+		16:48:44.121 -> OK	31	1	MIDI message?
+		16:48:44.121 -> x 	50	1	...
+	
+	idle
+	16:48:45.412 -> OK	F1	0
+	16:48:45.412 -> OK	FE	1
+
+		16:48:46.703 -> x 	E8	0	Host: CT MAGIC 0xE8!
+		16:48:46.703 -> OK	23	1
+	
+	
+	* Out of stand-by:
+		17:01:35.530 -> OK	80	1	???
+		17:01:38.542 -> x 	FD	1	???
+		17:01:38.675 -> OK	EC	0	???
+		17:01:38.675 -> OK	FE	1	???
+
+		17:01:38.708 -> x 	FF	0	Host: Please reset!
+		17:01:38.708 -> x 	FA	1	Kbd: OK
+		17:01:38.807 -> x 	AA	1	Kbd: "Okay, ready again!"
+
+		17:01:38.807 -> x 	F5	0	Host: Disable Scanning
+		17:01:38.807 -> x 	FA	1
+
+		17:01:38.840 -> OK	F2	0	Host: Read ID
+		17:01:38.840 -> x 	FA	1	Kbd: OK
+		17:01:38.840 -> OK	AB	1	Kbd: id=AB..
+		17:01:38.840 -> OK	83	1	Kbd: id=AB83
+
+		17:01:39.237 -> x 	ED	0	Host: Set LEDs
+		17:01:39.237 -> x 	FA	1	Kbd: OK
+		17:01:39.237 -> x 	00	0	Host: ...LEDs off
+		17:01:39.237 -> x 	FA	1	Kbd: OK
+
+		17:01:39.237 -> x 	F0	0	Host: Set scan code to...
+		17:01:39.237 -> OK	FE	1	???
+		17:01:39.237 -> OK	02	0	???
+		17:01:39.237 -> OK	FE	1	???
+
+		17:01:39.237 -> x 	F3	0	Host: Set Typematic Rate/Delay
+		17:01:39.237 -> x 	FA	1	Kbd: OK
+		17:01:39.237 -> x 	2B	0	Host: Typematic...
+		17:01:39.237 -> x 	FA	1	Kbd: OK
+		17:01:39.237 -> OK	F4	0	Host: Typematic...
+		17:01:39.237 -> x 	FA	1	Kbd: OK
+		17:01:40.297 -> x 	FF	0	Host: Please reset!
+		17:01:40.297 -> x 	FA	1	Kbd: OK
+		17:01:40.429 -> x 	AA	1	Kbd: "Okay, ready again!"
+
+		17:01:40.429 -> x 	F3	0	Host: Set Typematic Rate/Delay
+		17:01:40.429 -> x 	FA	1	Kbd: OK
+		17:01:40.429 -> OK	20	0	Host: Typematic...
+		17:01:40.429 -> x 	FA	1	Kbd: OK
+		17:01:40.429 -> x 	FD	0	Host: Typematic...
+		17:01:40.462 -> x 	FA	1	Kbd: OK
+		17:01:40.462 -> x 	00	0	???
+		17:01:40.462 -> x 	FA	1	Kbd: OK
+
+		17:01:40.860 -> x 	ED	0	Host: Set LEDs
+		17:01:40.860 -> x 	FA	1	Kbd: OK
+		17:01:40.860 -> x 	00	0	Host: LEDs off
+		17:01:40.860 -> x 	FA	1	Kbd: OK
+
+		17:01:40.893 -> x 	E4	0	Host: CT MAGIC!
+		17:01:40.893 -> x 	FA	1	Kbd: OK
+		17:01:40.893 -> x 	05	0	Host: CT FUNCTION 0x05 (Resume?)
+		17:01:40.893 -> x 	FA	1	Kbd: OK
+
+		17:01:40.926 -> OK	E0	1	EXT
+		17:01:40.926 -> OK	31	1	MIDI message: ready?
+		17:01:40.926 -> x 	50	1	...
+	
+	
+	* Playing MIDI note "F"
+		17:03:24.385 -> OK	E0	1	EXT
+		17:03:24.385 -> OK	51	1	MIDI message: note event?
+		17:03:24.385 -> x 	35	1	MIDI note
+		17:03:24.385 -> OK	7F	1	MIDI velocity
+		
+		17:03:25.643 -> OK	E0	1	EXT
+		17:03:25.643 -> OK	51	1	MIDI message: note event?
+		17:03:25.643 -> x 	F0	1	KEY OFF
+		17:03:25.643 -> x 	35	1	MIDI note
+	
+	
+	* ProdLoad shutdown sequence:
+		17:05:07.711 -> x 	E4	0	Host: CT MAGIC!
+		17:05:07.711 -> x 	FA	1	Kbd: OK
+		17:05:07.711 -> OK	16	0	Host: CT FUNCTION 0x16 (Stop/Shutdown?)
+		17:05:07.711 -> x 	FA	1	Kbd: OK

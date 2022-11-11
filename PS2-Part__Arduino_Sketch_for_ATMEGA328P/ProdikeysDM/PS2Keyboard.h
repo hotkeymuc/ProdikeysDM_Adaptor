@@ -65,7 +65,7 @@ typedef void (*onKeyRelease_t)(byte c, bool e);
 typedef void (*onProdikeysKeyPress_t)(byte k, byte m);
 typedef void (*onProdikeysKeyRelease_t)(byte k);
 typedef void (*onProdikeysMidiPress_t)(byte n, byte velocity);
-typedef void (*onProdikeysMidiRelease_t)(byte n);
+typedef void (*onProdikeysMidiRelease_t)(byte n, byte velocity);
 typedef void (*onProdikeysPitchBend_t)(int8_t pitch);
 
 
@@ -130,6 +130,7 @@ class PS2Keyboard {
 
     void resetAndWait();
     void sendCommand(byte val);
+    void sendCommandAndWait(byte val);
     void sendCommandAndWaitAck(byte val);
     
     void setCallbacks(

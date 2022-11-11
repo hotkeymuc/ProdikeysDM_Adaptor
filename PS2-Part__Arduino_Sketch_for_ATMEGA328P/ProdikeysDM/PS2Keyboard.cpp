@@ -8,6 +8,9 @@
   ** Modified to include: shift, alt, caps_lock, caps_lock light, and hot-plugging a kbd  *
   ** by Bill Oldfield 22/7/09 *
 
+  ** Modified to handle "CreativeLabs Prodikeys DM" custom data *
+  ** by Bernhard "HotKey" Slawik, github.com/hotkeymuc, 2019 *
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation; either
@@ -73,6 +76,8 @@ onData_t ps2Keyboard_onData = NULL;
 onError_t ps2Keyboard_onError = NULL;
 onKeyPress_t ps2Keyboard_onKeyPress = NULL;
 onKeyRelease_t ps2Keyboard_onKeyRelease = NULL;
+
+// Custom for Prodikeys
 onProdikeysKeyPress_t ps2Keyboard_onProdikeysKeyPress = NULL;
 onProdikeysKeyRelease_t ps2Keyboard_onProdikeysKeyRelease = NULL;
 onProdikeysMidiPress_t ps2Keyboard_onProdikeysMidiPress = NULL;
@@ -187,43 +192,44 @@ uint8_t kbd_read_extra() {
 // statements are fast and the path through the routine is only ever a few
 // simple lines of code.
 void ps2interrupt (void) {
-  //int value = digitalRead(ps2Keyboard_DataPin);
-  byte value = (PIND & B00010000) >> 4; // FAST read (digitalRead is too slow for Host->Keyboard communication and can miss the first bit)
+  int value = digitalRead(ps2Keyboard_DataPin);
+  //byte value = (PIND & B00010000) >> 4; // FAST read (digitalRead is too slow for Host->Keyboard communication and can miss the first bit)
 
   // This is the code to send a byte to the keyboard. Actually its 12 bits:
   // a start bit, 8 data bits, 1 parity, 1 stop bit, 1 ack bit (from the kbd)
   if (cmd_in_progress) {
     cmd_count++;          // cmd_count keeps track of the shifting
     switch (cmd_count) {
-    case 1: // start bit
-      digitalWrite(ps2Keyboard_DataPin, LOW);
-      break;
-    case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
-      // data bits to shift
-      digitalWrite(ps2Keyboard_DataPin,cmd_value&1);
-      cmd_value = cmd_value>>1;
-      break;
-    case 10:  // parity bit
-      digitalWrite(ps2Keyboard_DataPin,cmd_parity);
-      break;
-    case 11:  // stop bit
-      // release the data pin, so stop bit actually relies on pull-up
-      // but this ensures the data pin is ready to be driven by the kbd for
-      // for the next bit.
-      digitalWrite(ps2Keyboard_DataPin, HIGH);
-      pinMode(ps2Keyboard_DataPin, INPUT);
-      break;
-    case 12: // ack bit - driven by the kbd, so we read its value
-      cmd_ack_value = digitalRead(ps2Keyboard_DataPin);
-      cmd_in_progress = false;  // done shifting out
+      case 1: // start bit
+        digitalWrite(ps2Keyboard_DataPin, LOW);
+        break;
+      case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
+        // data bits to shift
+        digitalWrite(ps2Keyboard_DataPin, cmd_value&1);
+        cmd_value = cmd_value>>1;
+        break;
+      case 10:  // parity bit
+        digitalWrite(ps2Keyboard_DataPin,cmd_parity);
+        break;
+      case 11:  // stop bit
+        // release the data pin, so stop bit actually relies on pull-up
+        // but this ensures the data pin is ready to be driven by the kbd for
+        // for the next bit.
+        digitalWrite(ps2Keyboard_DataPin, HIGH);
+        pinMode(ps2Keyboard_DataPin, INPUT);
+        break;
+      case 12: // ack bit - driven by the kbd, so we read its value
+        cmd_ack_value = digitalRead(ps2Keyboard_DataPin);
+        cmd_in_progress = false;  // done shifting out
+        break;
     }
     return; // don't fall through to the receive section of the ISR
   }
 
   // receive section of the ISR
   // shift the bits in
-  if ((ps2Keyboard_BitPos == 0) && (value == HIGH)) {
-    // Discar "HIGH" start bit!
+  if ((ps2Keyboard_BitPos == 0) && (value == 1)) { //value == HIGH)) {
+    // Discard "HIGH" start bit!
     return;
   }
   
@@ -237,7 +243,7 @@ void ps2interrupt (void) {
     //Serial.println(ps2Keyboard_CurrentBuffer, HEX);
     if (ps2Keyboard_onData != NULL) ps2Keyboard_onData(ps2Keyboard_CurrentBuffer);
 
-    
+    // Prodikeys:
     if (ps2Keyboard_prodikeysFunction > 0) {
 
       if (ps2Keyboard_prodikeysFunction == 0x31) {
@@ -253,7 +259,7 @@ void ps2interrupt (void) {
               //Serial.print("Prodikeys: PITCH ");
               //Serial.println(map(ps2Keyboard_CurrentBuffer, 0x31, 0x6f, -63, 63));
               if (ps2Keyboard_onProdikeysPitchBend != NULL) {
-                ps2Keyboard_onProdikeysPitchBend(map(ps2Keyboard_CurrentBuffer, 0x31, 0x6f, -63, 63));
+                ps2Keyboard_onProdikeysPitchBend(map(ps2Keyboard_CurrentBuffer, 0x31, 0x6f, -64, 64));
               }
               
             } else {
@@ -280,41 +286,55 @@ void ps2interrupt (void) {
         
       } else
       if (ps2Keyboard_prodikeysFunction == 0x51) {
-        // MIDI event
         
-        if (ps2Keyboard_prodikeysPos == 0) {
-          if (ps2Keyboard_CurrentBuffer == 0xf0) {  // Release event
-            ps2Keyboard_release = true;
-          } else {
-            ps2Keyboard_prodikeysKey = ps2Keyboard_CurrentBuffer;
-          }
-        } else
-        if (ps2Keyboard_prodikeysPos == 1) {
-          if (ps2Keyboard_release) {
-            //ps2Keyboard_prodikeysKey = ps2Keyboard_CurrentBuffer;
-            //Serial.print("Prodikeys: RELEASE ");
-            //Serial.println(ps2Keyboard_prodikeysKey, HEX);
-            if (ps2Keyboard_onProdikeysMidiRelease != NULL)
-              ps2Keyboard_onProdikeysMidiRelease(ps2Keyboard_prodikeysKey);
+        // MIDI event
+        switch (ps2Keyboard_prodikeysPos) {
+          
+          case 0:
+            if (ps2Keyboard_CurrentBuffer == 0xf0) {  // Release event
+              ps2Keyboard_release = true;
+            } else {
+              ps2Keyboard_prodikeysKey = ps2Keyboard_CurrentBuffer;
+            }
+            break;
+          
+          case 1:
+            if (ps2Keyboard_release) {
+              ps2Keyboard_prodikeysKey = ps2Keyboard_CurrentBuffer;
+
+              if (ps2Keyboard_onProdikeysMidiRelease != NULL)
+                ps2Keyboard_onProdikeysMidiRelease(ps2Keyboard_prodikeysKey, 0);
+                
+              ps2Keyboard_prodikeysFunction = 0; // Back to normal
             
+            } else {
+              //Serial.print("Prodikeys: PRESS ");
+              //Serial.print(ps2Keyboard_prodikeysKey, HEX);
+              //Serial.print(" velocity=");
+              //Serial.println(ps2Keyboard_CurrentBuffer);
+              if (ps2Keyboard_onProdikeysMidiPress != NULL)
+                ps2Keyboard_onProdikeysMidiPress(ps2Keyboard_prodikeysKey, ps2Keyboard_CurrentBuffer);
+              
+              ps2Keyboard_prodikeysFunction = 0; // Back to normal
+            }
+            break;
+          /*
+          case 2:
+            if (ps2Keyboard_release) {
+              //Serial.print("Prodikeys: RELEASE ");
+              //Serial.println(ps2Keyboard_prodikeysKey, HEX);
+              if (ps2Keyboard_onProdikeysMidiRelease != NULL)
+                ps2Keyboard_onProdikeysMidiRelease(ps2Keyboard_prodikeysKey, ps2Keyboard_CurrentBuffer);
+            }
             ps2Keyboard_prodikeysFunction = 0; // Back to normal
-            
-          } else {
-            //Serial.print("Prodikeys: PRESS ");
-            //Serial.print(ps2Keyboard_prodikeysKey, HEX);
-            //Serial.print(" velocity=");
-            //Serial.println(ps2Keyboard_CurrentBuffer);
-            if (ps2Keyboard_onProdikeysMidiPress != NULL)
-              ps2Keyboard_onProdikeysMidiPress(ps2Keyboard_prodikeysKey, ps2Keyboard_CurrentBuffer);
-            
+            break;
+          */
+          default:
+            //Serial.println("Prodikeys flow error");
+            if (ps2Keyboard_onError != NULL) ps2Keyboard_onError('X');
             ps2Keyboard_prodikeysFunction = 0; // Back to normal
-            
-          }
-        } else {
-          //Serial.println("Prodikeys flow error");
-          if (ps2Keyboard_onError != NULL) ps2Keyboard_onError('X');
-          ps2Keyboard_prodikeysFunction = 0; // Back to normal
         }
+        
       } else {
         //Serial.println("Prodikeys function error");
         if (ps2Keyboard_onError != NULL) ps2Keyboard_onError('F');
@@ -324,6 +344,7 @@ void ps2interrupt (void) {
       ps2Keyboard_prodikeysPos++;
       
     } else
+    
     // Normal keyboard operation
     switch (ps2Keyboard_CurrentBuffer) {
       case 0xF0: { // key release char
@@ -361,21 +382,61 @@ void ps2interrupt (void) {
       }
       case 0x12:   // left shift
       case 0x59: { // right shift
+        /*
+        if (ps2Keyboard_release) {
+          if (ps2Keyboard_onKeyRelease != NULL)
+            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend);
+        } else {
+          if (ps2Keyboard_onKeyPress != NULL)
+            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend, kbd_read_extra());
+        }
+        */
+            
         ps2Keyboard_shift = ps2Keyboard_release? false : true;
         ps2Keyboard_release = false;
         break;
       }
       case 0x11: { // alt key (right alt is extended 0x11)
+        /*
+        if (ps2Keyboard_release) {
+          if (ps2Keyboard_onKeyRelease != NULL)
+            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend);
+        } else {
+          if (ps2Keyboard_onKeyPress != NULL)
+            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend, kbd_read_extra());
+        }
+        */
+
         ps2Keyboard_alt = ps2Keyboard_release? false : true;
         ps2Keyboard_release = false;
         break;
       }
       case 0x14: { // ctrl key (right ctrl is extended 0x14)
+        /*
+        if (ps2Keyboard_release) {
+          if (ps2Keyboard_onKeyRelease != NULL)
+            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend);
+        } else {
+          if (ps2Keyboard_onKeyPress != NULL)
+            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend, kbd_read_extra());
+        }
+        */
+
         ps2Keyboard_ctrl = ps2Keyboard_release? false : true;
         ps2Keyboard_release = false;
         break;
       }
       case 0x58: { // caps lock key
+        /*
+        if (ps2Keyboard_release) {
+          if (ps2Keyboard_onKeyRelease != NULL)
+            ps2Keyboard_onKeyRelease(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend);
+        } else {
+          if (ps2Keyboard_onKeyPress != NULL)
+            ps2Keyboard_onKeyPress(ps2Keyboard_CurrentBuffer, ps2Keyboard_extend, kbd_read_extra());
+        }
+        */
+
         if (!ps2Keyboard_release) {
         	ps2Keyboard_caps_lock = ps2Keyboard_caps_lock? false : true;
         	// allow caps lock code through to enable light on and off
@@ -386,7 +447,9 @@ void ps2interrupt (void) {
         }
         break;
       }
+      
       default: { // a real key
+        
         if ((ps2Keyboard_extend) && ((ps2Keyboard_CurrentBuffer == 0x51) || (ps2Keyboard_CurrentBuffer == 0x31))) {
           // Prodikeys event
           ps2Keyboard_prodikeysFunction = ps2Keyboard_CurrentBuffer;
@@ -642,6 +705,11 @@ void PS2Keyboard::resetAndWait() {
 void PS2Keyboard::sendCommand(byte val) {
   kbd_send_command(val, false);
 }
+void PS2Keyboard::sendCommandAndWait(byte val) {
+  while (cmd_in_progress) ;
+  kbd_send_command(val, false);
+  while (cmd_in_progress) ;
+}
 void PS2Keyboard::sendCommandAndWaitAck(byte val) {
   cmd_ack_byte_ok = false;   // initialise the ack byte flag
   kbd_send_command(val, true);    // send the command byte
@@ -653,6 +721,7 @@ void PS2Keyboard::setCallbacks(
     onError_t onError,
     onKeyPress_t onKeyPress,
     onKeyRelease_t onKeyRelease,
+    
     onProdikeysKeyPress_t onProdikeysKeyPress,
     onProdikeysKeyRelease_t onProdikeysKeyRelease,
     onProdikeysMidiPress_t onProdikeysMidiPress,
@@ -663,6 +732,7 @@ void PS2Keyboard::setCallbacks(
   ps2Keyboard_onError = onError;
   ps2Keyboard_onKeyPress = onKeyPress;
   ps2Keyboard_onKeyRelease = onKeyRelease;
+  
   ps2Keyboard_onProdikeysKeyPress = onProdikeysKeyPress;
   ps2Keyboard_onProdikeysKeyRelease = onProdikeysKeyRelease;
   ps2Keyboard_onProdikeysMidiPress = onProdikeysMidiPress;

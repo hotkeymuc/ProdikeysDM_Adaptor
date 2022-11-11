@@ -24,8 +24,8 @@ The trick is to split the problem up into two parts: a *PS/2 part* (talking to t
 * Now physically connect the ProdikeysDM keyboard to the Arduino: PS2-VCC to +5V, PS2-GND to GND, PS2-CLK to D3, PS2-DATA to D4. (Refer to "PS2Keyboard" examples on the web)
 * You are now ready to plug the Arduino into a computer and it should show up as "Prodikeys DM multifunction keyboard", having a HID-Keyboard, and a MIDI-capable audio device.
 * Have fun jamming along!
+* Hint: Use Shift+Octave for semitone tuning, Ctrl+Octave to change patches
 
 ## Known issues
-* Some notes on the MIDI keyboard do not produce any MIDI data. This seems to be a well-known issue with these keyboards. It may be due to missing configuration data that needs to be sent to the keyboard on power up.
-* Not all keys on the typing keyboard have been implemented. Currently only alpha numericals work.
-* Status LEDs are currently wrong and can't be toggled
+* Not all standard typing keys have been correctly implemented. Shift+Cursor does not work, for example.
+* Status LEDs and NumLock can't be toggled at the moment

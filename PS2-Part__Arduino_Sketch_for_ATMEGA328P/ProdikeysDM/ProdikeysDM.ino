@@ -113,7 +113,7 @@ PS2Keyboard keyboard;
   #define dump_flush() ;
 #endif
 
-int midi_transpose = 2;
+int midi_transpose = 0;
 int midi_channel = 0;
 int midi_patch = 0;
 
